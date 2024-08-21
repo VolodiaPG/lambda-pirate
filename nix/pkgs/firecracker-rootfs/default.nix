@@ -1,26 +1,27 @@
-{ vmTools
-, fetchurl
-, qemu_kvm
-, runCommand
-, runc
-, firecracker-containerd
-, runc-static
-, lib
-, imageFilesystem ? "squashfs"
-, debugShell ? false
-, squashfsTools
-, util-linux
-}:
-
-let
+{
+  vmTools,
+  fetchurl,
+  qemu_kvm,
+  runCommand,
+  runc,
+  firecracker-containerd,
+  runc-static,
+  lib,
+  imageFilesystem ? "squashfs",
+  debugShell ? false,
+  squashfsTools,
+  util-linux,
+}: let
+  inherit (vmTools) debDistros;
   qcow = vmTools.makeImageFromDebDist {
-    name = "debian-10.9-buster-amd64";
-    fullName = "Debian 10.9 Buster (amd64)";
-    packagesList = fetchurl {
-      url = "https://snapshot.debian.org/archive/debian/20220101T024315Z/dists/buster/main/binary-amd64/Packages.xz";
-      sha256 = "sha256-Yh1QU8wS6vxojixvGs6eQhrYSMVxp21r81KBg+7BhvE=";
-    };
-    urlPrefix = "mirror://debian";
+    inherit (debDistros.debian10x86_64) name fullName packagesList urlPrefix;
+    #name = "debian-10.9-buster-amd64";
+    #fullName = "Debian 10.9 Buster (amd64)";
+    #packagesList = fetchurl {
+    #  url = "https://snapshot.debian.org/archive/debian/20210526T143040Z/dists/buster/main/binary-amd64/Packages.xz";
+    #  sha256 = "sha256-k13toY1b3CX7GBPQ7Jm24OMqCEsgPlGK8M99x57o69o=";
+    #};
+    #urlPrefix = "mirror://debian";
     packages = [
       "base-passwd"
       "dpkg"
@@ -58,41 +59,45 @@ let
     memSize = "1G";
 
     createRootFS =
-      if imageFilesystem == "squashfs" then ''
+      if imageFilesystem == "squashfs"
+      then ''
         # the default function would create an ext4 image here and mount it to /mnt
         mkdir -p /mnt/proc /mnt/dev /mnt/sys
         touch /mnt/.debug
 
         # fake mount, that buildCommand can unmount
         ${util-linux}/bin/mount --bind /mnt /mnt
-      '' else vmTools.defaultCreateRootFS;
+      ''
+      else vmTools.defaultCreateRootFS;
 
     QEMU_OPTS = " -smp $(nproc)";
 
-    postInstall = ''
-      cp -rv ${firecracker-containerd.src}/tools/image-builder/files_debootstrap/* /mnt
-      ${lib.optionalString debugShell ''
-        cp -rv ${./extra-files}/* /mnt
-      ''}
+    postInstall =
+      ''
+        cp -rv ${firecracker-containerd.src}/tools/image-builder/files_debootstrap/* /mnt
+        ${lib.optionalString debugShell ''
+          cp -rv ${./extra-files}/* /mnt
+        ''}
 
-      install -D ${firecracker-containerd}/bin/agent /mnt/usr/local/bin/agent
+        install -D ${firecracker-containerd}/bin/agent /mnt/usr/local/bin/agent
 
-      install -D ${runc-static}/bin/runc /mnt/usr/local/bin/runc
-      # https://github.com/firecracker-microvm/firecracker-containerd/blob/7cf94848ae2e587f7469d42037e54607a461ff34/tools/image-builder/Makefile#L17
-      dirs=$(grep -m 1 IMAGE_DIRS ${firecracker-containerd.src}/tools/image-builder/Makefile | sed 's/^.*= //g')
-      for d in $dirs; do
-        mkdir -p /mnt/$d
-      done
-      # overlay-init wants this
-      ln -s /lib/systemd/systemd /mnt/usr/sbin/init
-    '' + lib.optionalString (imageFilesystem == "squashfs") ''
+        install -D ${runc-static}/bin/runc /mnt/usr/local/bin/runc
+        # https://github.com/firecracker-microvm/firecracker-containerd/blob/7cf94848ae2e587f7469d42037e54607a461ff34/tools/image-builder/Makefile#L17
+        dirs=$(grep -m 1 IMAGE_DIRS ${firecracker-containerd.src}/tools/image-builder/Makefile | sed 's/^.*= //g')
+        for d in $dirs; do
+          mkdir -p /mnt/$d
+        done
+        # overlay-init wants this
+        ln -s /lib/systemd/systemd /mnt/usr/sbin/init
+      ''
+      + lib.optionalString (imageFilesystem == "squashfs") ''
 
-      ln -sf dash /mnt/bin/sh
-      # now we create the actual filesystem
-      ${squashfsTools}/bin/mksquashfs /mnt /dev/vda -noappend -e /mnt/proc -e /mnt/inst
-    '';
+        ln -sf dash /mnt/bin/sh
+        # now we create the actual filesystem
+        ${squashfsTools}/bin/mksquashfs /mnt /dev/vda -noappend -e /mnt/proc -e /mnt/inst
+      '';
   };
 in
-runCommand "rootfs.img" { } ''
-  ${qemu_kvm}/bin/qemu-img convert ${qcow}/disk-image.qcow2 $out
-''
+  runCommand "rootfs.img" {} ''
+    ${qemu_kvm}/bin/qemu-img convert ${qcow}/disk-image.qcow2 $out
+  ''

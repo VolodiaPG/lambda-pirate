@@ -1,10 +1,13 @@
-vhive_dir := `echo "$(dirname $(which deployer))/../share/vhive-examples"`
+#vhive_dir := `echo "$(dirname $(which deployer))/../share/vhive-examples"`
+
+vhive_dir := ""
 vhive_bin := ""
+
 #vhive_dir := invocation_directory() + "/../vhive"
 #vhive_bin := `echo ~/go/bin/`
 
 # print this help
-help: 
+help:
     just -l
 
 # when the autoscaler overloads your system again
@@ -12,24 +15,24 @@ killvms:
     sudo pkill -SIGTERM firecracker
 
 lambda-pirate:
-  sudo modprobe kheaders
-  nix build github:Mic92/vmsh#vmsh -o vmsh/vmsh
-  nix build github:Mic92/vmsh#busybox-image -o vmsh/busybox.ext4
-  [[ -f vmsh/busybox.rw.ext4 ]] || cp vmsh/busybox.ext4 vmsh/busybox.rw.ext4
-  sudo -E IN_CAPSH=1 \
-      capsh \
-      --caps="cap_sys_ptrace,cap_dac_override,cap_sys_admin,cap_sys_resource+epi cap_setpcap,cap_setuid,cap_setgid+ep" \
-      --keep=1 \
-      --groups=$(id -G | sed -e 's/ /,/g') \
-      --gid=$(id -g) \
-      --uid=$(id -u) \
-      --addamb=cap_sys_resource \
-      --addamb=cap_sys_admin \
-      --addamb=cap_sys_ptrace \
-      --addamb=cap_dac_override \
-      -- -c 'export USER=$(id -un); python3 lambda-pirate.py'
+    sudo modprobe kheaders
+    nix build github:Mic92/vmsh#vmsh -o vmsh/vmsh
+    nix build github:Mic92/vmsh#busybox-image -o vmsh/busybox.ext4
+    [[ -f vmsh/busybox.rw.ext4 ]] || cp vmsh/busybox.ext4 vmsh/busybox.rw.ext4
+    sudo -E IN_CAPSH=1 \
+        capsh \
+        --caps="cap_sys_ptrace,cap_dac_override,cap_sys_admin,cap_sys_resource+epi cap_setpcap,cap_setuid,cap_setgid+ep" \
+        --keep=1 \
+        --groups=$(id -G | sed -e 's/ /,/g') \
+        --gid=$(id -g) \
+        --uid=$(id -u) \
+        --addamb=cap_sys_resource \
+        --addamb=cap_sys_admin \
+        --addamb=cap_sys_ptrace \
+        --addamb=cap_dac_override \
+        -- -c 'export USER=$(id -un); python3 lambda-pirate.py'
 
-reset: 
+reset:
     just make-incinerate
     just vhive-registry
     just make-deploy
@@ -42,34 +45,34 @@ reset-notify:
     just reset
     sendtelegram "vhive resetted $?"
 
-nixos-rebuild: 
+nixos-rebuild:
     sudo nixos-rebuild switch --impure --override-input lambda-pirate ./.
 
 make-incinerate:
     sudo -E make -C knative burn-down-cluster
 
 make-deploy:
-    CONFIG_ACCESSOR=cat VHIVE_CONFIG={{vhive_dir}}/configs sudo -E make -C knative deploy -j$(nproc)
+    CONFIG_ACCESSOR=cat VHIVE_CONFIG={{ vhive_dir }}/configs sudo -E make -C knative deploy -j$(nproc)
 
 vhive-deployer:
     # we just accept that it won't deploy completely and kill after some time
-    sudo -E {{vhive_bin}}deployer -jsonFile knative/functions.json -funcPath {{vhive_dir}}/configs/knative_workloads --endpointsFile /tmp/endpoints.json &
+    sudo -E {{ vhive_bin }}deployer -jsonFile knative/functions.json -funcPath {{ vhive_dir }}/configs/knative_workloads --endpointsFile /tmp/endpoints.json &
     sleep 30
-    sudo kill $(ps aux | awk '{print $2"\t"$11}' | grep $(echo {{vhive_bin}}deployer) | awk '{print $1}')
+    sudo kill $(ps aux | awk '{print $2"\t"$11}' | grep $(echo {{ vhive_bin }}deployer) | awk '{print $1}')
     wait
 
 vhive-deploy-local:
-    sudo -E kn service apply helloworldlocal -f {{vhive_dir}}/configs/knative_workloads/helloworld_local.yaml
+    sudo -E kn service apply helloworldlocal -f {{ vhive_dir }}/configs/knative_workloads/helloworld_local.yaml
 
 vhive-invoker-slow:
-    {{vhive_bin}}invoker -time 20 --endpointsFile /tmp/endpoints.json
+    {{ vhive_bin }}invoker -time 20 --endpointsFile /tmp/endpoints.json
 
 vhive-invoker-fast:
-    {{vhive_bin}}invoker -rps 20 -time 20 --endpointsFile /tmp/endpoints.json
+    {{ vhive_bin }}invoker -rps 20 -time 20 --endpointsFile /tmp/endpoints.json
 
 vhive-registry:
     #CONFIG_ACCESSOR=cat VHIVE_CONFIG=/home/peter/vhive/configs sudo -E make -C knative registry
-    sudo {{vhive_bin}}registry -imageFile {{vhive_dir}}/examples/registry/images.txt -source docker://docker.io 
+    sudo {{ vhive_bin }}registry -imageFile {{ vhive_dir }}/examples/registry/images.txt -source docker://docker.io
     #-destination docker://docker-registry.registry.svc.cluster.local.10.43.225.186.nip.io:5000
 
 watch-pods-all:
@@ -78,7 +81,7 @@ watch-pods-all:
 watch-pods:
     watch -n 0.5 sudo -E kubectl get pod
 
-fcctr: 
+fcctr:
     echo "image to container id mapping"
     sudo firecracker-ctr -n firecracker-containerd containers list
     echo "containerid/task to pid mapping: not host pid"
@@ -93,11 +96,16 @@ kube-proxy:
 
 # works
 # curl -k "http://localhost:8001/apis/autoscaling/v1/horizontalpodautoscalers" | vim -
-
 # didnt work
 # curl -k "http://localhost:8001/apis/autoscaling/v1/namespaces/default/horizontalpodautoscalers/minio-deployment-877b8596f-4x9nc"
 
 sign-drone:
-  DRONE_SERVER=https://drone.thalheim.io \
-  DRONE_TOKEN=$(cat $HOME/.secret/drone-token) \
-    nix shell --inputs-from .# 'nixpkgs#drone-cli' -c drone sign pogobanane/lambda-pirate --save
+    DRONE_SERVER=https://drone.thalheim.io \
+    DRONE_TOKEN=$(cat $HOME/.secret/drone-token) \
+      nix shell --inputs-from .# 'nixpkgs#drone-cli' -c drone sign pogobanane/lambda-pirate --save
+
+toto:
+    #!/usr/bin/env bash
+    vmpath=$(nix build .#nixosConfigurations.example-host.config.system.build.vm --print-out-paths)
+    export QEMU_NET_OPTS="hostfwd=tcp::2222-:22"
+    exec $vmpath/bin/run-nixos-vm -nographic

@@ -1,9 +1,12 @@
-{ pkgs, lib, config, ... }:
-let
-  #pinned-cni-plugins = pkgs.callPackage ../pkgs/cni-plugins.nix { };
-  pinned-containerd = pkgs.callPackage ../pkgs/containerd.nix { };
-in
 {
+  pkgs,
+  lib,
+  config,
+  ...
+}: let
+  #pinned-cni-plugins = pkgs.callPackage ../pkgs/cni-plugins.nix { };
+  pinned-containerd = pkgs.callPackage ../pkgs/containerd.nix {};
+in {
   options = {
     services.vhive.dockerRegistryIp = lib.mkOption {
       type = lib.types.str;
@@ -18,7 +21,7 @@ in
     nixpkgs.overlays = [
       (self: super: {
         # theres an required plugin missing in 1.0.0 so we pin it to 0.9.1
-      #  cni-plugins = pinned-cni-plugins;
+        #  cni-plugins = pinned-cni-plugins;
         containerd = pinned-containerd;
       })
     ];
@@ -26,12 +29,12 @@ in
     environment.systemPackages = [
       (pkgs.runCommand "wrap-kubectl"
         {
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeBuildInputs = [pkgs.makeWrapper];
         } ''
-        mkdir -p $out/bin
-        makeWrapper ${pkgs.kubernetes}/bin/kubectl $out/bin/kubectl \
-          --set KUBECONFIG "/etc/kubernetes/cluster-admin.kubeconfig"
-      '')
+          mkdir -p $out/bin
+          makeWrapper ${pkgs.kubernetes}/bin/kubectl $out/bin/kubectl \
+            --set KUBECONFIG "/etc/kubernetes/cluster-admin.kubeconfig"
+        '')
       # having iptables in path is still useful for debugging
       pkgs.iptables
     ];
@@ -42,7 +45,7 @@ in
     services.dockerRegistry.listenAddress = "0.0.0.0";
 
     # update firewall whitelist for use if it is enabled
-    networking.firewall.allowedTCPPorts = [ 
+    networking.firewall.allowedTCPPorts = [
       6443 # kube api server
       8001 # proxy exposing 6441 insecurely
       5000 # docker registry
@@ -50,7 +53,7 @@ in
     networking.firewall.checkReversePath = false;
 
     # IP under which this host is reachable in the local network. TODO needs config
-    networking.hosts = { ${config.services.vhive.dockerRegistryIp} = [ "docker-registry.registry.svc.cluster.local" ]; };
+    networking.hosts = {${config.services.vhive.dockerRegistryIp} = ["docker-registry.registry.svc.cluster.local"];};
 
     virtualisation.containerd.enable = true;
 
@@ -74,8 +77,8 @@ in
     };
 
     systemd.services.k3s = {
-      after = [ "vhive.service" ];
-      wants = [ "vhive.service" ];
+      after = ["vhive.service"];
+      wants = ["vhive.service"];
     };
 
     services.k3s.role = "server";

@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-{
+{pkgs, ...}: {
   virtualisation.docker.enable = true;
 
   systemd.tmpfiles.rules = [
@@ -9,8 +8,8 @@
   # required for skopeo (image cache)
   virtualisation.containers.enable = true;
   virtualisation.containers.policy = {
-    default = [{ type = "insecureAcceptAnything"; }];
-    transports.docker-daemon."" = [{ type = "insecureAcceptAnything"; }];
+    default = [{type = "insecureAcceptAnything";}];
+    transports.docker-daemon."" = [{type = "insecureAcceptAnything";}];
   };
 
   systemd.services.vhive = let
@@ -21,14 +20,19 @@
     '';
   in {
     wantedBy = ["multi-user.target"];
-    after = [ "firecracker-containerd.service" "containerd.service" ];
-    wants = [ "firecracker-containerd.service" "containerd.service" ];
+    after = ["firecracker-containerd.service" "containerd.service"];
+    wants = ["firecracker-containerd.service" "containerd.service"];
     path = [
-      pkgs.nettools pkgs.kubectl pkgs.iptables pkgs.jq pkgs.iproute2 pkgs.sudo
+      pkgs.nettools
+      pkgs.kubectl
+      pkgs.iptables
+      pkgs.jq
+      pkgs.iproute2
+      pkgs.sudo
     ];
     inherit preStart;
     postStop = preStart;
-    serviceConfig ={
+    serviceConfig = {
       Environment = "KUBECONFIG=/etc/rancher/k3s/k3s.yaml";
       Restart = "on-failure";
       ExecStart = "${pkgs.vhive}/bin/vhive -dbg";
