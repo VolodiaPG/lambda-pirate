@@ -41,7 +41,7 @@ burn-down-cluster: ## delete all cluster data and repopulate the cluster
 
 loadbalancer: ## deploy load balancer
 	$(KUBECTL) apply -f $(METALLB_CONFIG)/namespace.yaml
-	$(KUBECTL) apply -f $(METALLB_CONFIG)/metallb.yaml
+	curl -sL $(METALLB_CONFIG)/metallb.yaml | sed 's/image: metallb/image: quay\.io\/metallb/' | $(KUBECTL) apply -f -
 	$(KUBECTL) apply -f ${VHIVE_CONFIG}/metallb/metallb-configmap.yaml
 	$(KUBECTL) get secret -n metallb-system memberlist || \
 		$(KUBECTL) create secret generic -n metallb-system memberlist --from-literal=secretkey="$(openssl rand -base64 128)"

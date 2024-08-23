@@ -32,8 +32,10 @@ in {
           nativeBuildInputs = [pkgs.makeWrapper];
         } ''
           mkdir -p $out/bin
+
+          #--set KUBECONFIG "/etc/kubernetes/cluster-admin.kubeconfig"
           makeWrapper ${pkgs.kubernetes}/bin/kubectl $out/bin/kubectl \
-            --set KUBECONFIG "/etc/kubernetes/cluster-admin.kubeconfig"
+            --set KUBECONFIG "/etc/rancher/k3s/k3s.yaml"
         '')
       # having iptables in path is still useful for debugging
       pkgs.iptables

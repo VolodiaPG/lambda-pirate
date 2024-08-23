@@ -1,6 +1,6 @@
 #vhive_dir := `echo "$(dirname $(which deployer))/../share/vhive-examples"`
 
-vhive_dir := ""
+vhive_dir := `echo "$(nix build --print-out-paths .#vhive-examples)/share/vhive-examples"`
 vhive_bin := ""
 
 #vhive_dir := invocation_directory() + "/../vhive"
@@ -106,6 +106,11 @@ sign-drone:
 
 toto:
     #!/usr/bin/env bash
-    vmpath=$(nix build .#nixosConfigurations.example-host.config.system.build.vm --print-out-paths)
-    export QEMU_NET_OPTS="hostfwd=tcp::2222-:22"
+    vmpath=$(nix build --impure --print-out-paths --expr "
+    let
+    self = builtins.getFlake ''path://{{ justfile_directory() }}'';
+      vm = self.nixosConfigurationsFunction.example-host {pwd=''{{ justfile_directory() }}'';};
+      install = vm.config.system.build.vm;
+    in
+    install" )
     exec $vmpath/bin/run-nixos-vm -nographic

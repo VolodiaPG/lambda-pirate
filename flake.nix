@@ -88,12 +88,16 @@
           ++ [
             pkgs.just
             pkgs.jq
+            pkgs.git
             pkgs.libcgroup
             pkgs.skopeo
             pkgs.just
             pkgs.istioctl
+            pkgs.coreutils
+            pkgs2.nix
+            pkgs.gnumake
             ownPkgs.kn
-            #      ownPkgs.vhive-examples
+            ownPkgs.vhive-examples
             pythonWithPackages
           ];
         shellHook = ''
@@ -104,45 +108,53 @@
       };
     })
     // {
-      nixosConfigurations = {
-        example-host = nixpkgs.lib.nixosSystem {
-          system = "x86_64-linux";
-          modules = [
-            self.nixosModules.knative
-            self.nixosModules.vhive
-            #{boot.isContainer = true;}
-            ({lib, ...}: {
-              services.vhive.dockerRegistryIp = "127.0.0.1";
+      nixosConfigurationsFunction = {
+        example-host = {pwd}:
+          nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            modules = [
+              "${nixpkgs}/nixos/modules/virtualisation/qemu-vm.nix"
+              self.nixosModules.knative
+              self.nixosModules.vhive
+              #{boot.isContainer = true;}
+              ({pkgs, ...}: {
+                nix.package = nixpkgs2.legacyPackages.${pkgs.system}.nix;
+                nix.extraOptions = ''
+                  experimental-features = nix-command flakes
+                '';
+                services.vhive.dockerRegistryIp = "127.0.0.1";
+                # Networking setup
+                networking.hostName = "nixos"; # Set your VM hostname
+                networking.useDHCP = true; # Enable DHCP for network configuration
 
-              boot.loader.grub.device = "/dev/sda"; # Install GRUB to the disk
+                # User configuration
+                services.getty.autologinUser = "nixos";
+                users.users.nixos = {
+                  isNormalUser = true;
+                  home = "/home/nixos";
+                  initialPassword = "nixos"; # Replace with your own password
+                  extraGroups = ["wheel" "networkmanager"]; # Add the user to important groups
+                };
+                environment.systemPackages = self.outputs.devShell.${pkgs.system}.buildInputs;
 
-              # Networking setup
-              networking.hostName = "nixos"; # Set your VM hostname
-              networking.useDHCP = true; # Enable DHCP for network configuration
+                # Enable sudo without password for wheel group (optional, but useful for initial setup)
+                security.sudo.wheelNeedsPassword = false;
 
-              # User configuration
-              services.getty.autologinUser = "nixos";
-              users.users.nixos = {
-                isNormalUser = true;
-                home = "/home/nixos";
-                initialPassword = "nixos"; # Replace with your own password
-                extraGroups = ["wheel" "networkmanager"]; # Add the user to important groups
-              };
-
-              # Enable sudo without password for wheel group (optional, but useful for initial setup)
-              security.sudo.wheelNeedsPassword = false;
-
-              # Enable and configure SSH service
-              services.openssh.enable = true;
-              services.openssh.permitRootLogin = "yes"; # Allow root login (optional, set to "no" for more security)
-              services.openssh.passwordAuthentication = true; # Allow password authentication
-
-              # Enable a basic firewall (optional)
-              networking.firewall.enable = true;
-              networking.firewall.allowedTCPPorts = [22]; # Open SSH port
-            })
-          ];
-        };
+                # Enable a basic firewall (optional)
+                networking.firewall.enable = true;
+                networking.firewall.allowedTCPPorts = [22]; # Open SSH port
+                virtualisation = {
+                  memorySize = 16000;
+                  cores = 8;
+                  diskSize = 10 * 1024;
+                  sharedDirectories.current = {
+                    source = "${pwd}";
+                    target = "/home/nixos";
+                  };
+                };
+              })
+            ];
+          };
       };
       nixosModules = {
         firecracker-pkgs = {...}: {

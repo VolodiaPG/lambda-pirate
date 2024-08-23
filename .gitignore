@@ -2,3 +2,6 @@ target/
 .direnv
 result
 *.qcow2
+.cache/
+.kube/
+.bash_history
