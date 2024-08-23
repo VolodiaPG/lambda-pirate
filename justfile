@@ -1,7 +1,7 @@
-#vhive_dir := `echo "$(dirname $(which deployer))/../share/vhive-examples"`
+#vhive_dir := `echo "$(dirname $(which deployer))/../share/vhive-examples"`just
 
 vhive_dir := `echo "$(nix build --print-out-paths .#vhive-examples)/share/vhive-examples"`
-vhive_bin := ""
+vhive_bin := `echo "$(nix build --print-out-paths .#vhive-examples)/bin/"`
 
 #vhive_dir := invocation_directory() + "/../vhive"
 #vhive_bin := `echo ~/go/bin/`
@@ -113,4 +113,4 @@ toto:
       install = vm.config.system.build.vm;
     in
     install" )
-    exec $vmpath/bin/run-nixos-vm -nographic
+    exec $vmpath/bin/run-nixos-vm -nographic -cpu host -enable-kvm
